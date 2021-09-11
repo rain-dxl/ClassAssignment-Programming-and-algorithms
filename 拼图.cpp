@@ -3,6 +3,10 @@
 #include<iostream>
 #include<windows.h>
 #include<ctime>
+#include<string.h>
+#include<queue>
+#include<set>
+#include<stdlib.h>
 using namespace std;
 
 //切割后的图片结构体
@@ -16,23 +20,36 @@ typedef struct  Image_part {
 	int nowlocate; //该图片当前位置
 
 }Image_part;
+//自动还原算法辅助结构体
+typedef struct status_node {
+	int status_type;   //产生这一状态的类型
+	string s;
+	struct status_node* father;     //产生这一状态的父状态
+	struct status_node* son[4];          //这一状态产生的子状态
+
+}status;
 int *BankLocate;// 空白所在位置
 
 void Pic_welcome();
 void Pic_play();
+void Pic_computer();
 void Pic_introduction();
 void Pic_win();
 void waitchoose_w();
 void waitchoose_i();
 void waitchoose_p(Image_part* part);
+void computer_move(Image_part* part);
 
 void num_random(int num[9]);
-void Pic_play_random(Image_part* part);
+void Pic_play_random(Image_part* part,int num[9]);
 void move_down(Image_part* p);
 void move_up(Image_part* p);
 void move_left(Image_part* p);
 void move_right(Image_part* p);
-
+string auto_play(int num[9]);
+string back_auto(int num[9]);
+string change(int num[9]);
+void swap_s(char* s1, char* s2);
 //输出欢迎界面,进入欢迎界面操作
 void Pic_welcome() {
 	setbkcolor(WHITE);
@@ -75,6 +92,7 @@ void Pic_play() {
 
 	//加载图片
 	int i;
+	int num[9];
 	IMAGE image;
 	Image_part part[9];
 	loadimage(&image, _T("test.jpg"), 640, 640);
@@ -90,8 +108,95 @@ void Pic_play() {
 	}
 	BankLocate = &part[8].nowlocate;
 	Sleep(1000);
-	Pic_play_random(part);
+	Pic_play_random(part,num);
 	waitchoose_p(part);
+}
+
+void Pic_computer() {
+	setbkcolor(WHITE);
+	cleardevice();
+
+	//加载图片
+	int i;
+	IMAGE image;
+	Image_part part[9];
+	loadimage(&image, _T("test.jpg"), 640, 640);
+	putimage(0, 0, &image);
+	clearrectangle(426, 426, 640, 640);
+
+	for (i = 0; i < 9; i++) {
+		part[i].x = 213 * (i % 3);
+		part[i].y = 213 * int(i / 3);
+		part[i].locate = i;//初始化位置
+		part[i].nowlocate = i;//当前位置
+		getimage(&part[i].image, part[i].x, part[i].y, part[i].weight, part[i].height);
+	}
+	BankLocate = &part[8].nowlocate;
+	Sleep(1000);
+	computer_move(part);
+	
+}
+void computer_move(Image_part* part) {
+	int i,j;
+	int num[9];
+	string back;
+	Pic_play_random(part,num);
+	back = auto_play(num);
+	cout << back << endl;
+	for (j = 0; j < 9; j++) {
+		cout << "空位块信息" << j << " " << part[j].locate<<" "<<part[j].nowlocate << endl;
+	}
+	for (i = 0; i < back.size(); i++) {
+		Sleep(300);
+		switch (back[i]) {
+			case '0': {//将空白左移，即空白左边图片右移
+				for (j = 0; j < 9; j++) {
+					if (part[j].nowlocate  == *BankLocate-1)
+						break;
+				}
+				cout << "向右移动了" << part[j].nowlocate << endl;
+				move_right(&part[j]);
+				
+				break;
+			}
+			case '1': {//将空白下移，即空白下边图片上移
+				for (j = 0; j < 9; j++) {
+					if (part[j].nowlocate  == *BankLocate+3)
+						break;
+						
+				}
+				cout << "向上移动了" << part[j].nowlocate << endl;
+				move_up(&part[j]);
+				break;
+			}
+			case '2': {//将空白右移，即空白右边图片左移
+				for (j = 0; j < 9; j++) {
+					if (part[j].nowlocate == *BankLocate+1)
+						break;
+				}
+				cout << "向左移动了" << part[j].nowlocate << endl;
+				move_left(&part[j]);
+				break;
+			}
+			case '3': {//将空白上移，即空白上边图片下移
+				for (j = 0; j < 9; j++) {
+					if (part[j].nowlocate == *BankLocate-3)
+						break;
+				}
+				cout << "向下移动了" << part[j].nowlocate << endl;
+				move_down(&part[j]);
+				break;
+			}
+		}
+		cout << "当前空白在" <<*BankLocate <<endl;
+	}
+	//成功后将完整图片输出
+	Sleep(500);
+	IMAGE image;
+	loadimage(&image, _T("test.jpg"), 640, 640);
+	putimage(0, 0, &image);
+	Pic_win();
+
 }
 //输出游戏介绍界面，并进入介绍界面操作
 void Pic_introduction() {
@@ -196,6 +301,7 @@ void waitchoose_w() {
 
 	switch (flag) {
 	case 1: {
+		Pic_computer();
 		break;
 	}
 	case 2: {
@@ -323,13 +429,7 @@ void waitchoose_p(Image_part *part) {
 }
 //游戏完成界面,退回欢迎界面
 void Pic_win() {
-	LOGFONT f;
-	gettextstyle(&f);
-	f.lfHeight = 96;
-	settextstyle(&f);
-	setcolor(RED);
-	wchar_t s1[] = L"恭喜完成";
-	outtextxy(128, 272, s1);
+	
 	ExMessage m;
 	flushmessage(); //清空缓存消息
 	while (1) {
@@ -365,12 +465,16 @@ void num_random(int num[9]) {
 		}
 		if (key % 2 == 0) break;
 	}
+
 }
 //打乱图片
-void Pic_play_random(Image_part* part) {
+void Pic_play_random(Image_part* part,int luanxu[9]) {
 	int i,x,y;
 	int num[9] = { 0,1,2,3,4,5,6,7,8 };
 	num_random(num);
+	for (i = 0; i < 9; i++) {
+		luanxu[i] = num[i];
+	}
 	for (i = 0; i < 9; i++) {
 		cout << num[i] << endl;
 	}
@@ -415,6 +519,109 @@ void move_right(Image_part* p) {
 	*BankLocate = *BankLocate - 1;
 }
 
+
+
+//将数字转化为字符
+string change(int num[9]) {
+	string start;
+
+	for (int i = 0; i < 9; i++) {
+		char c = '0' + num[i];
+		start += c;
+	}
+	return start;
+}
+void swap_s(char* s1, char* s2) {
+	char temp;
+	temp = *s1;
+	*s1 = *s2;
+	*s2 = temp;
+}
+
+
+string back_auto(int num[9]) {
+	status* old_node = NULL, * new_node = NULL, * p = NULL;
+	string end = "123456780";
+	old_node = new status;
+	old_node->s = change(num);
+	old_node->father = NULL;
+	queue<status*> q; //队列中保存广度遍历的所有状态
+	set<string> d;
+
+	q.push(old_node);
+	d.insert(old_node->s);
+
+	int dx[4] = { -1,0,1,0 }, dy[4] = { 0,1,0,-1 };//上下左右移动
+
+
+	while (!q.empty()) {
+		old_node = new status;
+		old_node = q.front();
+		q.pop();
+		string s;
+		s = old_node->s;
+		int u = s.find('0');
+		int x = u % 3, y = u / 3;;
+
+		for (int i = 0; i < 4; i++) {
+			int a = x + dx[i], b = y + dy[i];
+			if (a >= 0 && a < 3 && b >= 0 && b < 3) {
+				swap_s(&s[u], &s[a + 3 * b]);
+				if (!d.count(s)) {   //记得判断是否搜过
+					d.insert(s);
+					new_node = new status;
+					new_node->father = NULL;
+					new_node->status_type = -1;
+					for (int k = 0; k < 4; k++) {
+						new_node->son[k] = NULL;
+					}
+					new_node->s = s;
+					new_node->status_type = i;
+					old_node->son[i] = new_node;
+					new_node->father = old_node;
+					q.push(new_node);
+					if (new_node->s == end) {
+
+						break;
+					}
+				}
+				swap_s(&s[u], &s[a + 3 * b]);
+
+			}
+		}
+
+		if (new_node->s == end) {
+
+			break;
+		}
+
+	}
+
+	char c;
+	string last;    //最后的序列
+	string last_a;
+	while (new_node->father != NULL) {
+		c = new_node->status_type + '0';
+		last += c;
+		new_node = new_node->father;
+	}
+	for (int i = last.size() - 1; i >= 0; i--) {
+		last_a += last[i];
+	}
+
+	return last_a;
+}
+
+string auto_play(int num[9]) {
+	int i;
+	string fuck;
+	for (i = 0; i < 9; i++) {
+		num[i] = (num[i] + 1) % 9;
+	}
+	fuck = back_auto(num);
+	cout << fuck << endl;
+	return fuck;
+}
 int main(void) {
 
 	initgraph(640, 640, EW_SHOWCONSOLE);
